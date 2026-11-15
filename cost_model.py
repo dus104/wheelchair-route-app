@@ -23,11 +23,24 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class CostParams:
-    a: float = 5.0                  # slope penalty value
-    standard_slope: float = 0.05    # 5 %
+    a_up: float = 7.0                  # slope penalty value
+    a_down: float = 3.0
+    standard_slope_up: float = 0.8    # 5 %
+    standard_slope_down: float = 0.05
     elevator_penalty: float = 0.0   # metres-equivalent, added once per elevator edge
     obstacle_penalty: float = 0.0   # metres-equivalent, non-blocking obstacle
 
+def calculate_slope_cost(
+    distance: float,
+    slope: float | None,
+    p: CostParams
+) -> float:
+    if slope is None:
+        return 0.0
+    if slope >= 0:  #uphill
+        return distance * p.a_up * max(0.0, slope - p.standard_slope_up)
+    else:   #downhill
+        return distance * p.a_down * max(0.0, abs(slope) - p.standard_slope_down)
 
 def _true(v) -> bool:
     return str(v).strip().lower() in {"true", "1", "yes"}
@@ -56,7 +69,7 @@ def edge_cost(edge: dict, p: CostParams) -> dict | None:
         return None
     d = float(edge["distance_m"])
     s = slope_ratio(edge)
-    c_slope = 0.0 if s is None else d * p.a * max(0.0, s - p.standard_slope)
+    c_slope = calculate_slope_cost(d, s, p)
     c_elev = p.elevator_penalty if _true(edge.get("elevator")) else 0.0
     obstacle = str(edge.get("obstacle", "")).strip()
     c_obs = p.obstacle_penalty if obstacle not in {"", "nan", "None"} else 0.0
